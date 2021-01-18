@@ -1,7 +1,7 @@
 # FORGER
 ![CI](https://github.com/freddd/forger/workflows/CI/badge.svg)
 
-## print
+## print 
 Prints the base64 token as json (skipping the signature)
 
 EXAMPLE USAGE:
