@@ -26,7 +26,7 @@ Alters the token given the input and returns a new `base64` encoded token. Only 
 
 EXAMPLE USAGE:
 ```bash
-forget <token> alter --increase-expiry=10 --subject=fe6ba0f0-9965-40d2-88bc-741bf4d7db04
+forger <token> alter --increase-expiry=10 --subject=fe6ba0f0-9965-40d2-88bc-741bf4d7db04
 ```
 
 Given the token
