@@ -41,7 +41,7 @@ fn main() {
         .arg(Arg::with_name("token").required(true))
         .get_matches();
 
-    let token_parts_b64: Vec<&str> = matches.value_of("token").unwrap().split(".").collect();
+    let token_parts_b64: Vec<&str> = matches.value_of("token").unwrap().split('.').collect();
     let mut token = match base64_to_map(token_parts_b64.clone()) {
         Ok(p) => p,
         Err(err) => {
@@ -58,31 +58,25 @@ fn main() {
             println!("{}", json_str.join("."))
         }
         ("alter", Some(arg_matches)) => {
-            let increase_expiry = arg_matches.value_of("increase-expiry");
             let claims = &mut token[1];
 
-            if increase_expiry.is_some() {
+            if let Some(increase) = arg_matches.value_of("increase-expiry") {
                 let original_expiry = claims["exp"].as_u64().unwrap_or(0);
-                claims["exp"] =
-                    Value::from(original_expiry + increase_expiry.unwrap().parse::<u64>().unwrap());
+                claims["exp"] = Value::from(original_expiry + increase.parse::<u64>().unwrap());
             }
 
-            let subject = arg_matches.value_of("subject");
-            if subject.is_some() {
-                claims["sub"] = Value::from(subject.unwrap());
+            if let Some(s) = arg_matches.value_of("subject") {
+                claims["sub"] = Value::from(s);
             }
 
             // TODO: only does substitutions on top-level
-            match arg_matches.values_of("prop") {
-                Some(values) => {
-                    for val in values {
-                        let key_vals: Vec<&str> = val.split("=").collect();
-                        if claims.contains_key(key_vals[0]) {
-                            claims[key_vals[0]] = Value::from(key_vals[1]);
-                        }
+            if let Some(values) = arg_matches.values_of("prop") {
+                for val in values {
+                    let key_vals: Vec<&str> = val.split('=').collect();
+                    if claims.contains_key(key_vals[0]) {
+                        claims[key_vals[0]] = Value::from(key_vals[1]);
                     }
                 }
-                None => {}
             }
 
             let encoded = token
@@ -110,5 +104,5 @@ fn base64_to_map(parts: Vec<&str>) -> Result<Vec<Map<String, Value>>, Box<dyn Er
         })
         .collect();
 
-    return Ok(parts_decoded);
+    Ok(parts_decoded)
 }
