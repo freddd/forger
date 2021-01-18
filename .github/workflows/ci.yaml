@@ -53,7 +53,7 @@ jobs:
 
   release:
     name: Release
-    needs: [test, deny-check]
+    needs: [test]
     if: startsWith(github.ref, 'refs/tags/')
     strategy:
       matrix:
