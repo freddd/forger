@@ -62,17 +62,14 @@ jobs:
             rust: stable
             target: x86_64-unknown-linux-musl
             bin: forger
-            features: ""
           - os: windows-latest
             rust: stable
             target: x86_64-pc-windows-msvc
             bin: forger.exe
-            features: ""
           - os: macOS-latest
             rust: stable
             target: x86_64-apple-darwin
             bin: forger
-            features: ""
     runs-on: ${{ matrix.os }}
     steps:
       - name: Install stable toolchain
@@ -90,11 +87,7 @@ jobs:
       - name: Release build
         shell: bash
         run: |
-          if [ "${{ matrix.features }}" != "" ]; then
-            cargo build --release --target ${{ matrix.target }} --features ${{ matrix.features }}
-          else
-            cargo build --release --target ${{ matrix.target }}
-          fi
+          cargo build --release --target ${{ matrix.target }}
       - name: Package
         shell: bash
         run: |
