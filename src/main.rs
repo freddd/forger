@@ -35,6 +35,14 @@ fn main() {
                         .multiple(true)
                         .help("key=value, gives the key the given value")
                         .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("none-algo")
+                        .short("n")
+                        .long("none-algo")
+                        .required(false)
+                        .help("changes algo to None")
+                        .takes_value(false),
                 ),
         )
         .subcommand(SubCommand::with_name("print").about("prints decoded JWT"))
@@ -42,7 +50,7 @@ fn main() {
         .get_matches();
 
     let token_parts_b64: Vec<&str> = matches.value_of("token").unwrap().split('.').collect();
-    let mut token = match base64_to_map(token_parts_b64.clone()) {
+    let token = match base64_to_map(token_parts_b64.clone()) {
         Ok(p) => p,
         Err(err) => {
             panic!("failed to decode token: {:#?}", err)
@@ -58,7 +66,14 @@ fn main() {
             println!("{}", json_str.join("."))
         }
         ("alter", Some(arg_matches)) => {
-            let claims = &mut token[1];
+            let mut header = token[0].clone();
+            let mut claims = token[1].clone();
+            let mut signature = token_parts_b64[2];
+
+            if arg_matches.is_present("none-algo") {
+                header["alg"] = Value::from("None");
+                signature = "";
+            }
 
             if let Some(increase) = arg_matches.value_of("increase-expiry") {
                 let original_expiry = claims["exp"].as_u64().unwrap_or(0);
@@ -79,15 +94,15 @@ fn main() {
                 }
             }
 
-            let encoded = token
+            let encoded = vec![header, claims]
                 .into_iter()
                 .map(|p| {
                     let json_str = serde_json::to_string(&p).unwrap();
-                    base64::encode(&json_str)
+                    base64::encode_config(&json_str, base64::STANDARD_NO_PAD)
                 })
                 .collect::<Vec<String>>();
 
-            println!("{}", encoded.join(".") + "." + token_parts_b64[2])
+            println!("{}", encoded.join(".") + "." + signature)
         }
         _ => unreachable!(),
     }
