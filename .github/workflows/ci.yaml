@@ -62,19 +62,17 @@ jobs:
             rust: stable
             target: x86_64-unknown-linux-musl
             bin: forger
-            # We don't enable the progress feature when targeting
-            # musl since there are some dependencies on shared libs
             features: ""
           - os: windows-latest
             rust: stable
             target: x86_64-pc-windows-msvc
             bin: forger.exe
-            features: progress
+            features: ""
           - os: macOS-latest
             rust: stable
             target: x86_64-apple-darwin
             bin: forger
-            features: progress
+            features: ""
     runs-on: ${{ matrix.os }}
     steps:
       - name: Install stable toolchain
