@@ -114,6 +114,6 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           draft: true
-          files: "$forger*"
+          files: "forger*"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
