@@ -1,7 +1,9 @@
 use std::error::Error;
 
 use clap::{App, Arg, SubCommand};
+use env_logger::Env;
 use hmac::{Hmac, Mac, NewMac};
+use log::debug;
 use serde_json::{Map, Value};
 use sha2::{Sha256, Sha384, Sha512};
 
@@ -10,6 +12,8 @@ type HmacSha384 = Hmac<Sha384>;
 type HmacSha512 = Hmac<Sha512>;
 
 fn main() {
+    env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
+
     let matches = App::new("forger")
         .version("1.0")
         .author("freddd")
@@ -78,6 +82,13 @@ fn main() {
                 .collect();
             println!("{}", json_str.join("."))
         }
+        ("brute-force", Some(_arg_matches)) => {
+            let json_str: Vec<String> = token
+                .into_iter()
+                .map(|p| serde_json::to_string_pretty(&p).unwrap())
+                .collect();
+            println!("{}", json_str.join("."))
+        }
         ("alter", Some(arg_matches)) => {
             let mut header = token[0].clone();
             let mut claims = token[1].clone();
@@ -97,6 +108,10 @@ fn main() {
                     let key_vals: Vec<&str> = val.split('=').collect();
                     if claims.contains_key(key_vals[0]) {
                         claims[key_vals[0]] = Value::from(key_vals[1]);
+                    }
+
+                    if header.contains_key(key_vals[0]) {
+                        header[key_vals[0]] = Value::from(key_vals[1]);
                     }
                 }
             }
@@ -118,23 +133,29 @@ fn main() {
                     Some(path) => std::fs::read_to_string(path).unwrap(),
                     None => String::from(""),
                 };
+                debug!("{}", secret.trim());
 
                 let signature: String = match algo {
                     "None" => String::from(""),
                     "HS256" => {
-                        let mut mac = HmacSha256::new_varkey(secret.as_bytes()).unwrap();
+                        debug!("computing new signature for: HS256");
+                        let mut mac = HmacSha256::new_varkey(secret.trim().as_bytes()).unwrap();
                         mac.update(encoded.join(".").as_bytes());
                         let result = mac.finalize().into_bytes();
                         base64::encode_config(&result, base64::URL_SAFE_NO_PAD)
                     }
                     "HS384" => {
-                        let mut mac = HmacSha384::new_varkey(secret.as_bytes()).unwrap();
+                        debug!("computing new signature for: HS384");
+
+                        let mut mac = HmacSha384::new_varkey(secret.trim().as_bytes()).unwrap();
                         mac.update(encoded.join(".").as_bytes());
                         let result = mac.finalize().into_bytes();
                         base64::encode_config(&result, base64::URL_SAFE_NO_PAD)
                     }
                     "HS512" => {
-                        let mut mac = HmacSha512::new_varkey(secret.as_bytes()).unwrap();
+                        debug!("computing new signature for: HS512");
+
+                        let mut mac = HmacSha512::new_varkey(secret.trim().as_bytes()).unwrap();
                         mac.update(encoded.join(".").as_bytes());
                         let result = mac.finalize().into_bytes();
                         base64::encode_config(&result, base64::URL_SAFE_NO_PAD)
@@ -142,6 +163,7 @@ fn main() {
                     _ => String::from(token_parts_b64[2]),
                 };
 
+                debug!("changed signature: {}", signature);
                 println!("{}", encoded.join(".") + "." + &signature)
             } else {
                 println!("{}", encoded.join(".") + "." + token_parts_b64[2])

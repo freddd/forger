@@ -4,9 +4,13 @@
 ## print 
 Prints the base64 token as json (skipping the signature)
 
-EXAMPLE USAGE:
 ```bash
-forger <token> print
+USAGE:
+    forger <token> print
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
 ```
 
 Given the token `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c` the output will be:
@@ -24,9 +28,20 @@ Given the token `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIi
 ## alter
 Alters the token given the input and returns a new `base64` encoded token. Only supports changing top-level claims.
 
-EXAMPLE USAGE:
 ```bash
-forger <token> alter --increase-expiry=10 --subject=fe6ba0f0-9965-40d2-88bc-741bf4d7db04
+USAGE:
+    forger <token> alter [OPTIONS]
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+    -a, --algo <algo>                          changes algo to the given algo
+    -i, --increase-expiry <increase-expiry>    increases expiry with the given milliseconds
+    -p, --prop <prop>...                       key=value, gives the key the given value
+        --secret-path <secret-path>            path to secret to use to create signature
+    -s, --subject <subject>                    change subject
 ```
 
 Given the token
