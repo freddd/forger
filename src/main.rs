@@ -1,7 +1,13 @@
 use std::error::Error;
 
 use clap::{App, Arg, SubCommand};
+use hmac::{Hmac, Mac, NewMac};
 use serde_json::{Map, Value};
+use sha2::{Sha256, Sha384, Sha512};
+
+type HmacSha256 = Hmac<Sha256>;
+type HmacSha384 = Hmac<Sha384>;
+type HmacSha512 = Hmac<Sha512>;
 
 fn main() {
     let matches = App::new("forger")
@@ -37,12 +43,19 @@ fn main() {
                         .takes_value(true),
                 )
                 .arg(
-                    Arg::with_name("none-algo")
-                        .short("n")
-                        .long("none-algo")
+                    Arg::with_name("algo")
+                        .short("a")
+                        .long("algo")
                         .required(false)
-                        .help("changes algo to None")
-                        .takes_value(false),
+                        .help("changes algo to the given algo")
+                        .takes_value(true),
+                )
+                .arg(
+                    Arg::with_name("secret-path")
+                        .long("secret-path")
+                        .required(false)
+                        .help("path to secret to use to create signature")
+                        .takes_value(true),
                 ),
         )
         .subcommand(SubCommand::with_name("print").about("prints decoded JWT"))
@@ -68,12 +81,6 @@ fn main() {
         ("alter", Some(arg_matches)) => {
             let mut header = token[0].clone();
             let mut claims = token[1].clone();
-            let mut signature = token_parts_b64[2];
-
-            if arg_matches.is_present("none-algo") {
-                header["alg"] = Value::from("None");
-                signature = "";
-            }
 
             if let Some(increase) = arg_matches.value_of("increase-expiry") {
                 let original_expiry = claims["exp"].as_u64().unwrap_or(0);
@@ -94,6 +101,10 @@ fn main() {
                 }
             }
 
+            if let Some(algo) = arg_matches.value_of("algo") {
+                header["alg"] = Value::from(algo);
+            }
+
             let encoded = vec![header, claims]
                 .into_iter()
                 .map(|p| {
@@ -102,7 +113,39 @@ fn main() {
                 })
                 .collect::<Vec<String>>();
 
-            println!("{}", encoded.join(".") + "." + signature)
+            if let Some(algo) = arg_matches.value_of("algo") {
+                let secret = match arg_matches.value_of("secret-path") {
+                    Some(path) => std::fs::read_to_string(path).unwrap(),
+                    None => String::from(""),
+                };
+
+                let signature: String = match algo {
+                    "None" => String::from(""),
+                    "HS256" => {
+                        let mut mac = HmacSha256::new_varkey(secret.as_bytes()).unwrap();
+                        mac.update(encoded.join(".").as_bytes());
+                        let result = mac.finalize().into_bytes();
+                        base64::encode_config(&result, base64::URL_SAFE_NO_PAD)
+                    }
+                    "HS384" => {
+                        let mut mac = HmacSha384::new_varkey(secret.as_bytes()).unwrap();
+                        mac.update(encoded.join(".").as_bytes());
+                        let result = mac.finalize().into_bytes();
+                        base64::encode_config(&result, base64::URL_SAFE_NO_PAD)
+                    }
+                    "HS512" => {
+                        let mut mac = HmacSha512::new_varkey(secret.as_bytes()).unwrap();
+                        mac.update(encoded.join(".").as_bytes());
+                        let result = mac.finalize().into_bytes();
+                        base64::encode_config(&result, base64::URL_SAFE_NO_PAD)
+                    }
+                    _ => String::from(token_parts_b64[2]),
+                };
+
+                println!("{}", encoded.join(".") + "." + &signature)
+            } else {
+                println!("{}", encoded.join(".") + "." + token_parts_b64[2])
+            }
         }
         _ => unreachable!(),
     }
