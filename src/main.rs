@@ -1,9 +1,15 @@
-use std::error::Error;
+use std::{
+    error::Error,
+    fs::File,
+    io::{BufRead, BufReader},
+    path::Path,
+};
 
 use clap::{App, Arg, SubCommand};
 use env_logger::Env;
 use hmac::{Hmac, Mac, NewMac};
 use log::debug;
+use rayon::prelude::*;
 use serde_json::{Map, Value};
 use sha2::{Sha256, Sha384, Sha512};
 
@@ -63,6 +69,17 @@ fn main() {
                 ),
         )
         .subcommand(SubCommand::with_name("print").about("prints decoded JWT"))
+        .subcommand(
+            SubCommand::with_name("brute-force") // a slower version than "hashcat jwt.txt -m 16500 -a 3 -w 2 ?d?d?d?d"
+                .about("tries to brute force the secret used to sign (only HMAC)")
+                .arg(
+                    Arg::with_name("wordlist")
+                        .long("wordlist")
+                        .required(true)
+                        .help("path to the wordlist to be used")
+                        .takes_value(true),
+                ),
+        )
         .arg(Arg::with_name("token").required(true))
         .get_matches();
 
@@ -82,12 +99,36 @@ fn main() {
                 .collect();
             println!("{}", json_str.join("."))
         }
-        ("brute-force", Some(_arg_matches)) => {
-            let json_str: Vec<String> = token
-                .into_iter()
-                .map(|p| serde_json::to_string_pretty(&p).unwrap())
-                .collect();
-            println!("{}", json_str.join("."))
+        ("brute-force", Some(arg_matches)) => {
+            let alg = token[0]["alg"].as_str().unwrap();
+            if !alg.starts_with("HS") {
+                println!("algorithm not supported");
+                return;
+            }
+
+            let words = lines_from_file(arg_matches.value_of("wordlist").unwrap());
+            let current_sig = token_parts_b64[2];
+            let header_and_payload = vec![token_parts_b64[0], token_parts_b64[1]].join(".");
+
+            words.par_iter().for_each(|word| {
+                let new_sig = match alg {
+                    "HS256" => {
+                        println!("{}", word);
+                        sign_payload::<HmacSha256>(header_and_payload.to_string(), word.as_bytes())
+                    }
+                    "HS384" => {
+                        sign_payload::<HmacSha384>(header_and_payload.to_string(), word.as_bytes())
+                    }
+                    "HS512" => {
+                        sign_payload::<HmacSha512>(header_and_payload.to_string(), word.as_bytes())
+                    }
+                    _ => unreachable!("algorithm not supported"),
+                };
+
+                if new_sig == current_sig {
+                    println!("the secret is: {}", word)
+                }
+            });
         }
         ("alter", Some(arg_matches)) => {
             let mut header = token[0].clone();
@@ -139,26 +180,15 @@ fn main() {
                     "None" => String::from(""),
                     "HS256" => {
                         debug!("computing new signature for: HS256");
-                        let mut mac = HmacSha256::new_varkey(secret.trim().as_bytes()).unwrap();
-                        mac.update(encoded.join(".").as_bytes());
-                        let result = mac.finalize().into_bytes();
-                        base64::encode_config(&result, base64::URL_SAFE_NO_PAD)
+                        sign_payload::<HmacSha256>(encoded.join("."), secret.trim().as_bytes())
                     }
                     "HS384" => {
                         debug!("computing new signature for: HS384");
-
-                        let mut mac = HmacSha384::new_varkey(secret.trim().as_bytes()).unwrap();
-                        mac.update(encoded.join(".").as_bytes());
-                        let result = mac.finalize().into_bytes();
-                        base64::encode_config(&result, base64::URL_SAFE_NO_PAD)
+                        sign_payload::<HmacSha384>(encoded.join("."), secret.trim().as_bytes())
                     }
                     "HS512" => {
                         debug!("computing new signature for: HS512");
-
-                        let mut mac = HmacSha512::new_varkey(secret.trim().as_bytes()).unwrap();
-                        mac.update(encoded.join(".").as_bytes());
-                        let result = mac.finalize().into_bytes();
-                        base64::encode_config(&result, base64::URL_SAFE_NO_PAD)
+                        sign_payload::<HmacSha512>(encoded.join("."), secret.trim().as_bytes())
                     }
                     _ => String::from(token_parts_b64[2]),
                 };
@@ -173,10 +203,26 @@ fn main() {
     }
 }
 
+fn sign_payload<T: Mac + NewMac>(token: String, secret: &[u8]) -> String {
+    let mut mac = T::new_varkey(secret).unwrap();
+    mac.update(token.as_bytes());
+    let result = mac.finalize().into_bytes();
+    base64::encode_config(&result, base64::URL_SAFE_NO_PAD)
+}
+
+fn lines_from_file(filename: impl AsRef<Path>) -> Vec<String> {
+    let file = File::open(filename).expect("no such file");
+    let buf = BufReader::new(file);
+    buf.lines()
+        .map(|l| l.expect("Could not parse line"))
+        .map(|s| s.trim().to_string())
+        .collect()
+}
+
 fn base64_to_map(parts: Vec<&str>) -> Result<Vec<Map<String, Value>>, Box<dyn Error>> {
     let parts_decoded = parts
         .into_iter()
-        .take(2) // skip signature as it's not base64
+        .take(2) // skip signature
         .map(|part| {
             let json_str = String::from_utf8(base64::decode(part).unwrap());
             let parsed: Value = serde_json::from_str(&json_str.unwrap()).unwrap();
