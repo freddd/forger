@@ -68,18 +68,21 @@ impl Alter {
 
         if let Some(increase) = self.increase_expiry.clone() {
             let original_expiry = claims["exp"].as_u64().unwrap_or(0);
-            claims["exp"] = Value::from(original_expiry + increase.parse::<u64>().unwrap());
+            header.insert(
+                String::from("exp"),
+                Value::from(original_expiry + increase.parse::<u64>().unwrap()),
+            );
         }
         if let Some(s) = self.subject.clone() {
-            claims["sub"] = Value::from(s);
+            header.insert(String::from("sub"), Value::from(s));
         }
 
         if let Some(jku) = self.jku.clone() {
-            header["jku"] = Value::from(jku);
+            header.insert(String::from("jku"), Value::from(jku));
         }
 
         if let Some(x5u) = self.x5u.clone() {
-            header["x5u"] = Value::from(x5u);
+            header.insert(String::from("x5u"), Value::from(x5u));
         }
 
         let private_key = match self.key.clone() {
@@ -103,13 +106,13 @@ impl Alter {
         }
 
         if let Some(algo) = self.algo.clone() {
-            header["alg"] = Value::from(algo);
+            header.insert(String::from("alg"), Value::from(algo));
         }
 
         // embed-jwk will remove the `kid` header, set alg to RS256 and add a new header called `jwk` with an embedded key
         if self.embed_jwk {
             header.remove("kid");
-            header["alg"] = Value::from("RS256");
+            header.insert(String::from("alg"), Value::from("RS256"));
 
             header.insert(
                 String::from("jwk"),
