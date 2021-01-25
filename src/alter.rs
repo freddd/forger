@@ -84,6 +84,7 @@ impl Alter {
 
         let private_key = match self.key.clone() {
             Some(key_path) => {
+                debug!("using key from path: {}", key_path);
                 Rsa::private_key_from_pem(read_private_key(key_path).as_bytes()).unwrap()
             }
             None => Rsa::generate(2048).unwrap(),
@@ -105,10 +106,10 @@ impl Alter {
             header["alg"] = Value::from(algo);
         }
 
-        // embed-jwk will remove the `kid` header, set alg to RSA256 and add a new header called `jwk` with an embedded key
+        // embed-jwk will remove the `kid` header, set alg to RS256 and add a new header called `jwk` with an embedded key
         if self.embed_jwk {
             header.remove("kid");
-            header["alg"] = Value::from("RSA256");
+            header["alg"] = Value::from("RS256");
 
             header.insert(
                 String::from("jwk"),
@@ -122,13 +123,18 @@ impl Alter {
             );
         }
 
+        debug!("headers: {:#?}", header);
+        debug!("claims: {:#?}", claims);
+
         let encoded = vec![header, claims]
             .into_iter()
             .map(|p| {
                 let json_str = serde_json::to_string(&p).unwrap();
-                base64::encode_config(&json_str, base64::STANDARD_NO_PAD)
+                base64::encode_config(&json_str, base64::URL_SAFE_NO_PAD)
             })
             .collect::<Vec<String>>();
+
+        debug!("encoded: {:#?}", encoded);
 
         if let Some(algo) = self.algo.clone() {
             let secret = match self.secret_path.clone() {
@@ -159,7 +165,7 @@ impl Alter {
                         secret.trim().as_bytes(),
                     )
                 }
-                "RSA256" => {
+                "RS256" => {
                     let keypair = PKey::from_rsa(private_key).unwrap();
                     let mut signer = Signer::new(MessageDigest::sha256(), &keypair).unwrap();
                     signer.update(encoded.join(".").as_bytes()).unwrap();

@@ -106,11 +106,16 @@ OPTIONS:
 ## Generate keys/cert
 
 Generate private key:
-```
+```bash
 openssl genrsa -out key.pem 2048
 ```
 
 Generate cert using key:
-```
+```bash
 openssl req -new -x509 -sha256 -key private.pem -out cert.pem -days 1095
+```
+
+Extract public key from cert:
+```bash
+openssl x509 -in certificate.pem -pubkey -noout
 ```

@@ -8,6 +8,7 @@ use std::{
 use clap::{App, Arg, SubCommand};
 use env_logger::Env;
 use hmac::{Hmac, Mac, NewMac};
+use log::debug;
 use openssl::{pkey::Private, rsa::Rsa};
 
 use serde_json::{Map, Value};
@@ -99,10 +100,10 @@ fn main() {
                         .takes_value(true),
                 )
                 .arg(
-                    Arg::with_name("secret-path")
-                        .long("secret-path")
+                    Arg::with_name("symmetric-secret-path")
+                        .long("symmetric-secret-path")
                         .required(false)
-                        .help("path to secret to use to create signature")
+                        .help("path to secret to use to create signature (HMAC)")
                         .takes_value(true),
                 )
                 .arg(Arg::with_name("token").required(true)),
@@ -144,6 +145,7 @@ fn main() {
         ("jwk", Some(args_matches)) => {
             let private_key = match args_matches.value_of("key") {
                 Some(key_path) => {
+                    debug!("using key from path: {}", key_path);
                     Rsa::private_key_from_pem(read_private_key(key_path).as_bytes()).unwrap()
                 }
                 None => Rsa::generate(2048).unwrap(),
@@ -167,7 +169,7 @@ fn main() {
                 arg_matches.value_of("key"),
                 arg_matches.is_present("embed-jwk"),
                 arg_matches.values_of("prop"),
-                arg_matches.value_of("secret-path"),
+                arg_matches.value_of("symmetric-secret-path"),
             )
             .execute(arg_matches.value_of("token").unwrap());
         }
@@ -176,11 +178,13 @@ fn main() {
 }
 
 fn e(key: Rsa<Private>) -> String {
-    base64::encode_config(key.e().to_string().split_off(2), base64::URL_SAFE_NO_PAD)
+    let p = Rsa::public_key_from_pem(&key.public_key_to_pem().unwrap()[..]).unwrap();
+    base64::encode_config(p.e().to_vec(), base64::URL_SAFE_NO_PAD)
 }
 
 fn n(key: Rsa<Private>) -> String {
-    base64::encode_config(key.n().to_string().split_off(2), base64::URL_SAFE_NO_PAD)
+    let p = Rsa::public_key_from_pem(&key.public_key_to_pem().unwrap()[..]).unwrap();
+    base64::encode_config(p.n().to_vec(), base64::URL_SAFE_NO_PAD)
 }
 
 fn sign_payload_using_hmac<T: Mac + NewMac>(token: String, secret: &[u8]) -> String {
