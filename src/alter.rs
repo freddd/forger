@@ -30,7 +30,7 @@ impl Alter<'_> {
         x5u: Option<&'a String>,
         key: Option<&'a String>,
         embed_jwk: bool,
-        props:Vec<&'a String>,
+        props: Vec<&'a String>,
         secret_path: Option<&'a String>,
     ) -> Alter<'a> {
         Alter {
