@@ -7,7 +7,7 @@ use std::{
 
 use clap::{App, Arg, SubCommand};
 use env_logger::Env;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, Mac, digest::KeyInit};
 use log::debug;
 use openssl::{pkey::Private, rsa::Rsa};
 
@@ -187,8 +187,8 @@ fn n(key: Rsa<Private>) -> String {
     base64::encode_config(p.n().to_vec(), base64::URL_SAFE_NO_PAD)
 }
 
-fn sign_payload_using_hmac<T: Mac + NewMac>(token: String, secret: &[u8]) -> String {
-    let mut mac = T::new_varkey(secret).unwrap();
+fn sign_payload_using_hmac<T: Mac + KeyInit>(token: String, secret: &[u8]) -> String {
+    let mut mac = <T as Mac>::new_from_slice(secret).unwrap();
     mac.update(token.as_bytes());
     let result = mac.finalize().into_bytes();
     base64::encode_config(&result, base64::URL_SAFE_NO_PAD)
