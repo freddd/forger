@@ -58,26 +58,26 @@ impl Alter<'_> {
         let mut header = token[0].clone();
         let mut claims = token[1].clone();
 
-        if let Some(increase) = self.increase_expiry.clone() {
+        if let Some(increase) = self.increase_expiry {
             let original_expiry = claims["exp"].as_u64().unwrap_or(0);
             header.insert(
                 String::from("exp"),
                 Value::from(original_expiry + increase.parse::<u64>().unwrap()),
             );
         }
-        if let Some(s) = self.subject.clone() {
+        if let Some(s) = self.subject {
             header.insert(String::from("sub"), Value::from(s.to_string()));
         }
 
-        if let Some(jku) = self.jku.clone() {
+        if let Some(jku) = self.jku {
             header.insert(String::from("jku"), Value::from(jku.to_string()));
         }
 
-        if let Some(x5u) = self.x5u.clone() {
+        if let Some(x5u) = self.x5u {
             header.insert(String::from("x5u"), Value::from(x5u.to_string()));
         }
 
-        let private_key = match self.key.clone() {
+        let private_key = match self.key {
             Some(key_path) => {
                 debug!("using key from path: {}", key_path);
                 Rsa::private_key_from_pem(read_private_key(key_path).as_bytes()).unwrap()
@@ -97,7 +97,7 @@ impl Alter<'_> {
             }
         }
 
-        if let Some(algo) = self.algo.clone() {
+        if let Some(algo) = self.algo {
             header.insert(String::from("alg"), Value::from(algo.to_string()));
         }
 
@@ -131,8 +131,8 @@ impl Alter<'_> {
 
         debug!("encoded: {:#?}", encoded);
 
-        if let Some(algo) = self.algo.clone() {
-            let secret = match self.secret_path.clone() {
+        if let Some(algo) = self.algo {
+            let secret = match self.secret_path {
                 Some(path) => std::fs::read_to_string(path).unwrap(),
                 None => String::from(""),
             };
@@ -172,7 +172,7 @@ impl Alter<'_> {
             debug!("changed signature: {}", signature);
             println!("{}", encoded.join(".") + "." + &signature)
         } else {
-            println!("{}", encoded.join(".") + "." + &token_parts_b64[2])
+            println!("{}", encoded.join(".") + "." + token_parts_b64[2])
         }
     }
 }

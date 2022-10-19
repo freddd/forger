@@ -9,11 +9,11 @@ use serde_json::{json, Value};
 
 use crate::{e, n};
 
-pub struct JWK {}
+pub struct Jwk {}
 
-impl JWK {
-    pub fn new() -> JWK {
-        JWK {}
+impl Jwk {
+    pub fn new() -> Jwk {
+        Jwk {}
     }
     pub fn execute(&self, private_key: Rsa<Private>, x5c: bool) {
         let mut jwk = json!({

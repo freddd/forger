@@ -132,12 +132,12 @@ fn main() {
         )
         .get_matches();
 
-    let _matches = match matches.subcommand() {
+    match matches.subcommand() {
         Some(("print", matches)) => {
-            print::Print::new().execute(matches.get_one::<String>(&"token").unwrap())
+            print::Print::new().execute(matches.get_one::<String>("token").unwrap())
         }
         Some(("jwk", matches)) => {
-            let private_key = match matches.get_one::<String>(&"key") {
+            let private_key = match matches.get_one::<String>("key") {
                 Some(key_path) => {
                     debug!("using key from path: {}", key_path);
                     Rsa::private_key_from_pem(read_private_key(key_path).as_bytes()).unwrap()
@@ -145,12 +145,12 @@ fn main() {
                 None => Rsa::generate(2048).unwrap(),
             };
 
-            jwk::JWK::new().execute(private_key, matches.contains_id("x5c"));
+            jwk::Jwk::new().execute(private_key, matches.contains_id("x5c"));
         }
         Some(("brute-force", matches)) => {
             brute_force::BruteForce::new().execute(
-                matches.get_one::<String>(&"token").unwrap(),
-                matches.get_one::<String>(&"wordlist").unwrap(),
+                matches.get_one::<String>("token").unwrap(),
+                matches.get_one::<String>("wordlist").unwrap(),
             );
         }
         Some(("alter", matches)) => {
@@ -162,7 +162,7 @@ fn main() {
             alter::Alter::new(
                 matches.get_one::<String>("algo"),
                 matches.get_one::<String>("increase-expiry"),
-                matches.get_one::<String>(&"subject"),
+                matches.get_one::<String>("subject"),
                 matches.get_one::<String>("jku"),
                 matches.get_one::<String>("x5u"),
                 matches.get_one::<String>("key"),
