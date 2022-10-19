@@ -1,4 +1,3 @@
-use clap::Values;
 use log::debug;
 use openssl::{hash::MessageDigest, pkey::PKey, rsa::Rsa, sign::Signer};
 use serde_json::{json, Value};
@@ -8,53 +7,46 @@ use crate::{
     HmacSha512,
 };
 
-// TODO: Refactor to use proper types instead of just passing on Option<&str>
-pub struct Alter {
-    algo: Option<String>,
-    increase_expiry: Option<String>,
-    subject: Option<String>,
-    jku: Option<String>,
-    x5u: Option<String>,
-    key: Option<String>,
+// TODO: Refactor to use proper types instead of just passing on Option<String>
+pub struct Alter<'a> {
+    algo: Option<&'a String>,
+    increase_expiry: Option<&'a String>,
+    subject: Option<&'a String>,
+    jku: Option<&'a String>,
+    x5u: Option<&'a String>,
+    key: Option<&'a String>,
     embed_jwk: bool,
-    props: Vec<String>,
-    secret_path: Option<String>,
+    props: Vec<&'a String>,
+    secret_path: Option<&'a String>,
 }
 
-impl Alter {
+impl Alter<'_> {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        algo: Option<&str>,
-        increase_expiry: Option<&str>,
-        subject: Option<&str>,
-        jku: Option<&str>,
-        x5u: Option<&str>,
-        key: Option<&str>,
+    pub fn new<'a>(
+        algo: Option<&'a String>,
+        increase_expiry: Option<&'a String>,
+        subject: Option<&'a String>,
+        jku: Option<&'a String>,
+        x5u: Option<&'a String>,
+        key: Option<&'a String>,
         embed_jwk: bool,
-        props: Option<Values>,
-        secret_path: Option<&str>,
-    ) -> Alter {
-        let properties = match props {
-            Some(values) => values.map(str::to_string).collect(),
-            None => {
-                vec![]
-            }
-        };
-
+        props: Vec<&'a String>,
+        secret_path: Option<&'a String>,
+    ) -> Alter<'a> {
         Alter {
-            algo: algo.map(str::to_string),
-            increase_expiry: increase_expiry.map(str::to_string),
-            subject: subject.map(str::to_string),
-            jku: jku.map(str::to_string),
-            x5u: x5u.map(str::to_string),
-            key: key.map(str::to_string),
+            algo,
+            increase_expiry,
+            subject,
+            jku,
+            x5u,
+            key,
             embed_jwk,
-            props: properties,
-            secret_path: secret_path.map(str::to_string),
+            props,
+            secret_path,
         }
     }
 
-    pub fn execute(&self, t: &str) {
+    pub fn execute(&self, t: String) {
         let token_parts_b64: Vec<&str> = t.split('.').collect();
         let token = match base64_to_map(token_parts_b64.clone()) {
             Ok(p) => p,
@@ -66,26 +58,26 @@ impl Alter {
         let mut header = token[0].clone();
         let mut claims = token[1].clone();
 
-        if let Some(increase) = self.increase_expiry.clone() {
+        if let Some(increase) = self.increase_expiry {
             let original_expiry = claims["exp"].as_u64().unwrap_or(0);
             header.insert(
                 String::from("exp"),
                 Value::from(original_expiry + increase.parse::<u64>().unwrap()),
             );
         }
-        if let Some(s) = self.subject.clone() {
-            header.insert(String::from("sub"), Value::from(s));
+        if let Some(s) = self.subject {
+            header.insert(String::from("sub"), Value::from(s.to_string()));
         }
 
-        if let Some(jku) = self.jku.clone() {
-            header.insert(String::from("jku"), Value::from(jku));
+        if let Some(jku) = self.jku {
+            header.insert(String::from("jku"), Value::from(jku.to_string()));
         }
 
-        if let Some(x5u) = self.x5u.clone() {
-            header.insert(String::from("x5u"), Value::from(x5u));
+        if let Some(x5u) = self.x5u {
+            header.insert(String::from("x5u"), Value::from(x5u.to_string()));
         }
 
-        let private_key = match self.key.clone() {
+        let private_key = match self.key {
             Some(key_path) => {
                 debug!("using key from path: {}", key_path);
                 Rsa::private_key_from_pem(read_private_key(key_path).as_bytes()).unwrap()
@@ -105,8 +97,8 @@ impl Alter {
             }
         }
 
-        if let Some(algo) = self.algo.clone() {
-            header.insert(String::from("alg"), Value::from(algo));
+        if let Some(algo) = self.algo {
+            header.insert(String::from("alg"), Value::from(algo.to_string()));
         }
 
         // embed-jwk will remove the `kid` header, set alg to RS256 and add a new header called `jwk` with an embedded key
@@ -139,8 +131,8 @@ impl Alter {
 
         debug!("encoded: {:#?}", encoded);
 
-        if let Some(algo) = self.algo.clone() {
-            let secret = match self.secret_path.clone() {
+        if let Some(algo) = self.algo {
+            let secret = match self.secret_path {
                 Some(path) => std::fs::read_to_string(path).unwrap(),
                 None => String::from(""),
             };

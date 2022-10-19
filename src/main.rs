@@ -5,9 +5,9 @@ use std::{
     path::Path,
 };
 
-use clap::{App, Arg, SubCommand};
+use clap::{Arg, Command};
 use env_logger::Env;
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{digest::KeyInit, Hmac, Mac};
 use log::debug;
 use openssl::{pkey::Private, rsa::Rsa};
 
@@ -27,123 +27,117 @@ mod print;
 fn main() {
     env_logger::Builder::from_env(Env::default().default_filter_or("info")).init();
 
-    let matches = App::new("forger")
+    let matches = clap::Command::new("forger")
         .version("1.0")
         .author("freddd")
         .about("Alter JWTs")
         .subcommand(
-            SubCommand::with_name("alter")
+            Command::new("alter")
                 .about("alters the JWT")
                 .arg(
-                    Arg::with_name("increase-expiry")
-                        .short("i")
+                    Arg::new("increase-expiry")
+                        .short('i')
                         .long("increase-expiry")
                         .required(false)
                         .help("increases expiry with the given milliseconds")
-                        .takes_value(true),
+                        .num_args(1),
                 )
                 .arg(
-                    Arg::with_name("subject")
-                        .short("sub")
+                    Arg::new("subject")
+                        .short('s')
                         .long("subject")
                         .required(false)
                         .help("change subject")
-                        .takes_value(true),
+                        .num_args(1),
                 )
                 .arg(
-                    Arg::with_name("prop")
-                        .short("p")
+                    Arg::new("prop")
+                        .short('p')
                         .long("prop")
                         .required(false)
-                        .multiple(true)
-                        .help("key=value, gives the key the given value")
-                        .takes_value(true),
+                        .num_args(1..)
+                        .help("key=value, gives the key the given value"),
                 )
                 .arg(
-                    Arg::with_name("algo")
-                        .short("a")
+                    Arg::new("algo")
+                        .short('a')
                         .long("algo")
                         .required(false)
                         .help("changes algo to the given algo")
-                        .takes_value(true),
+                        .num_args(1),
                 )
                 .arg(
-                    Arg::with_name("embed-jwk")
-                        .short("e")
+                    Arg::new("embed-jwk")
+                        .short('e')
                         .long("embed-jwk")
                         .required(false)
                         .help("creates an RSA key and embeds it (CVE-2018-0114)")
-                        .takes_value(false),
+                        .num_args(0),
                 )
                 .arg(
-                    Arg::with_name("jku")
-                        .short("jku")
+                    Arg::new("jku")
                         .long("jku")
                         .required(false)
                         .help("jku url (example: https://www.x.y/.well-known/jwks.json)")
-                        .takes_value(true),
+                        .num_args(1),
                 )
                 .arg(
-                    Arg::with_name("key")
-                        .short("key")
+                    Arg::new("key")
                         .long("key")
                         .required(false)
                         .help("path to private key to sign with (.pem), required when using jku/x5c and optional for embed-jwk")
-                        .takes_value(true),
+                        .num_args(1),
                 )
                 .arg(
-                    Arg::with_name("x5u")
-                        .short("x5u")
+                    Arg::new("x5u")
                         .long("x5u")
                         .required(false)
                         .help("x5u url (example: http://x.y/.well-known/jwks_with_x5c.json)")
-                        .takes_value(true),
+                        .num_args(1),
                 )
                 .arg(
-                    Arg::with_name("symmetric-secret-path")
+                    Arg::new("symmetric-secret-path")
                         .long("symmetric-secret-path")
                         .required(false)
                         .help("path to secret to use to create signature (HMAC)")
-                        .takes_value(true),
+                        .num_args(1),
                 )
-                .arg(Arg::with_name("token").required(true)),
+                .arg(Arg::new("token").required(true)),
         )
-        .subcommand(SubCommand::with_name("print").about("prints decoded JWT").arg(Arg::with_name("token").required(true)))
-        .subcommand(SubCommand::with_name("jwk").about("creates a jwk json file (RSA256)").arg(
-            Arg::with_name("key")
-                .short("key")
+        .subcommand(Command::new("print").about("prints decoded JWT").arg(Arg::new("token").required(true)))
+        .subcommand(Command::new("jwk").about("creates a jwk json file (RSA256)").arg(
+            Arg::new("key")
                 .long("key")
                 .required(false)
                 .help("path to a private key to resolve the public key to convert to jwk")
-                .takes_value(true),
+                .num_args(1),
         ).arg(
-            Arg::with_name("x5c")
-                .short("x5c")
+            Arg::new("x5c")
                 .long("x5c")
                 .required(false)
                 .help("adds a cert to jwk.json")
-                .takes_value(false),
+                .num_args(0),
         ))
         .subcommand(
-            SubCommand::with_name("brute-force")
+            Command::new("brute-force")
                 .about("tries to brute force the secret used to sign (only HMAC)")
                 .arg(
-                    Arg::with_name("wordlist")
+                    Arg::new("wordlist")
                         .long("wordlist")
                         .required(true)
                         .help("path to the wordlist to be used")
-                        .takes_value(true),
+                        .num_args(1),
                 )
-                .arg(Arg::with_name("token").required(true)),
+                .arg(Arg::new("token").required(true)),
         )
         .get_matches();
 
     match matches.subcommand() {
-        ("print", Some(arg_matches)) => {
-            print::Print::new().execute(arg_matches.value_of("token").unwrap())
+        Some(("print", matches)) => {
+            print::Print::new().execute(matches.get_one::<String>("token").unwrap())
         }
-        ("jwk", Some(args_matches)) => {
-            let private_key = match args_matches.value_of("key") {
+        Some(("jwk", matches)) => {
+            let private_key = match matches.get_one::<String>("key") {
                 Some(key_path) => {
                     debug!("using key from path: {}", key_path);
                     Rsa::private_key_from_pem(read_private_key(key_path).as_bytes()).unwrap()
@@ -151,30 +145,35 @@ fn main() {
                 None => Rsa::generate(2048).unwrap(),
             };
 
-            jwk::JWK::new().execute(private_key, args_matches.is_present("x5c"));
+            jwk::Jwk::new().execute(private_key, matches.contains_id("x5c"));
         }
-        ("brute-force", Some(args_matches)) => {
+        Some(("brute-force", matches)) => {
             brute_force::BruteForce::new().execute(
-                args_matches.value_of("token").unwrap(),
-                args_matches.value_of("wordlist").unwrap(),
+                matches.get_one::<String>("token").unwrap(),
+                matches.get_one::<String>("wordlist").unwrap(),
             );
         }
-        ("alter", Some(arg_matches)) => {
+        Some(("alter", matches)) => {
+            let props = matches
+                .get_many::<String>("prop")
+                .map(|vals| vals.collect::<Vec<_>>())
+                .unwrap_or_default();
+
             alter::Alter::new(
-                arg_matches.value_of("algo"),
-                arg_matches.value_of("increase-expiry"),
-                arg_matches.value_of("subject"),
-                arg_matches.value_of("jku"),
-                arg_matches.value_of("x5u"),
-                arg_matches.value_of("key"),
-                arg_matches.is_present("embed-jwk"),
-                arg_matches.values_of("prop"),
-                arg_matches.value_of("symmetric-secret-path"),
+                matches.get_one::<String>("algo"),
+                matches.get_one::<String>("increase-expiry"),
+                matches.get_one::<String>("subject"),
+                matches.get_one::<String>("jku"),
+                matches.get_one::<String>("x5u"),
+                matches.get_one::<String>("key"),
+                matches.contains_id("embed-jwk"),
+                props,
+                matches.get_one::<String>("symmetric-secret-path"),
             )
-            .execute(arg_matches.value_of("token").unwrap());
+            .execute(matches.get_one::<String>("token").unwrap().to_string());
         }
         _ => unreachable!(),
-    }
+    };
 }
 
 fn e(key: Rsa<Private>) -> String {
@@ -187,8 +186,8 @@ fn n(key: Rsa<Private>) -> String {
     base64::encode_config(p.n().to_vec(), base64::URL_SAFE_NO_PAD)
 }
 
-fn sign_payload_using_hmac<T: Mac + NewMac>(token: String, secret: &[u8]) -> String {
-    let mut mac = T::new_varkey(secret).unwrap();
+fn sign_payload_using_hmac<T: Mac + KeyInit>(token: String, secret: &[u8]) -> String {
+    let mut mac = <T as Mac>::new_from_slice(secret).unwrap();
     mac.update(token.as_bytes());
     let result = mac.finalize().into_bytes();
     base64::encode_config(&result, base64::URL_SAFE_NO_PAD)
