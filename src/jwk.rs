@@ -18,7 +18,7 @@ impl JWK {
     pub fn execute(&self, private_key: Rsa<Private>, x5c: bool) {
         let mut jwk = json!({
             "kty": "RSA",
-            "kid": "pentesterlab",
+            "kid": "xyz",
             "use": "sig",
             "alg":"RS256",
             "n": n(private_key.clone()),

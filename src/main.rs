@@ -7,7 +7,7 @@ use std::{
 
 use clap::{App, Arg, SubCommand};
 use env_logger::Env;
-use hmac::{Hmac, Mac, NewMac};
+use hmac::{Hmac, Mac};
 use log::debug;
 use openssl::{pkey::Private, rsa::Rsa};
 
